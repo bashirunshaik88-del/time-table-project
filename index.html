@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart Timetable Generator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h1>📅 Smart Timetable Generator</h1>
+
+<div class="form">
+    <input id="subjects" placeholder="Subjects (comma separated)">
+    <input id="faculty" placeholder="Faculty (same order)">
+    <input id="labs" placeholder="Lab Subjects (3-4)">
+    <input id="timeslots" placeholder="Time Slots">
+
+    <select id="sections" multiple>
+        <option value="A">Section A</option>
+        <option value="B">Section B</option>
+        <option value="C">Section C</option>
+    </select>
+
+    <button onclick="generate()">Generate Timetable</button>
+    <button onclick="checkClashes()">Check Clashes</button>
+</div>
+
+<div id="output"></div>
+
+<script src="script.js"></script>
+</body>
+</html>

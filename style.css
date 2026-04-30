@@ -1,0 +1,43 @@
+body {
+    font-family: Arial;
+    text-align: center;
+    background: #f5f5f5;
+}
+
+h1 {
+    color: #333;
+}
+
+.form {
+    background: white;
+    padding: 20px;
+    width: 300px;
+    margin: auto;
+    border-radius: 10px;
+    box-shadow: 0 0 10px #ccc;
+}
+
+input, select {
+    width: 90%;
+    margin: 5px;
+    padding: 8px;
+}
+
+button {
+    margin: 10px;
+    padding: 10px;
+    background: green;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 20px auto;
+}
+
+td, th {
+    border: 1px solid #333;
+    padding: 10px;
+}
