@@ -1,191 +1,147 @@
-let globalTimetable = {};
-let facultyBusy = {};
+const days = ["Mon","Tue","Wed","Thu","Fri","Sat"];
+let timetableData = {};
 
-const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-const PERIODS = 7; // including break slot index = 3
-
-function generate() {
-
-    let subjects = document.getElementById("subjects").value.split(",");
-    let faculty = document.getElementById("faculty").value.split(",");
-    let labs = document.getElementById("labs").value.split(",");
-
-    let sections = ["A","B","C"];
-
-    globalTimetable = {};
-    facultyBusy = {};
-
-    let output = "";
-
-    sections.forEach(section => {
-
-        let tt = {};
-
-        // initialize timetable
-        DAYS.forEach(day => {
-            tt[day] = new Array(PERIODS).fill("");
-        });
-
-        // -------- STEP 1: FIX BREAK --------
-        DAYS.forEach(day => {
-            tt[day][3] = "BREAK";
-        });
-
-        // -------- STEP 2: ADD 1 FREE PERIOD --------
-        DAYS.forEach(day => {
-            let freeSlot;
-            do {
-                freeSlot = Math.floor(Math.random() * PERIODS);
-            } while (freeSlot === 3); // avoid break
-
-            tt[day][freeSlot] = "FREE";
-        });
-
-        // -------- STEP 3: PLACE LABS (3 continuous slots) --------
-        labs.forEach((lab, index) => {
-
-            let placed = false;
-
-            while (!placed) {
-
-                let day = DAYS[Math.floor(Math.random()*DAYS.length)];
-                let start = Math.floor(Math.random()*4); // 0–3 safe start
-
-                if (start === 2) continue; // avoid crossing break
-
-                let fac = faculty[index % faculty.length];
-
-                let ok = true;
-
-                for (let i=0;i<3;i++) {
-                    let slot = start + i;
-
-                    if (slot === 3) ok = false; // avoid break
-
-                    let key = day+"-"+slot;
-
-                    if (!facultyBusy[key]) facultyBusy[key] = new Set();
-
-                    if (facultyBusy[key].has(fac) || tt[day][slot] !== "") {
-                        ok = false;
-                    }
-                }
-
-                if (ok) {
-                    for (let i=0;i<3;i++) {
-                        let slot = start + i;
-                        let key = day+"-"+slot;
-
-                        facultyBusy[key].add(fac);
-                        tt[day][slot] = lab + " LAB ("+fac+")";
-                    }
-                    placed = true;
-                }
-            }
-        });
-
-        // -------- STEP 4: FILL THEORY SUBJECTS --------
-        DAYS.forEach(day => {
-
-            for (let slot=0; slot<PERIODS; slot++) {
-
-                if (slot === 3) continue; // break
-                if (tt[day][slot] !== "") continue;
-
-                let placed = false;
-
-                for (let attempt=0; attempt<subjects.length; attempt++) {
-
-                    let idx = Math.floor(Math.random()*subjects.length);
-                    let sub = subjects[idx];
-                    let fac = faculty[idx];
-
-                    let key = day+"-"+slot;
-
-                    if (!facultyBusy[key]) facultyBusy[key] = new Set();
-
-                    if (!facultyBusy[key].has(fac)) {
-                        facultyBusy[key].add(fac);
-                        tt[day][slot] = sub + " ("+fac+")";
-                        placed = true;
-                        break;
-                    }
-                }
-
-                if (!placed) {
-                    tt[day][slot] = "FREE"; // fallback
-                }
-            }
-        });
-
-        globalTimetable[section] = tt;
-        output += `<h2>Section ${section}</h2>`;
-        output += drawTable(tt);
-    });
-
-    document.getElementById("output").innerHTML = output;
+function getInputs(){
+  return {
+    subjects: document.getElementById("subjects").value.split(",").map(x=>x.trim()),
+    faculty: document.getElementById("faculty").value.split(",").map(x=>x.trim()),
+    labs: document.getElementById("labs").value.split(",").map(x=>x.trim()),
+    sections: Array.from(document.getElementById("sections").selectedOptions).map(o=>o.value)
+  };
 }
 
+// generate timetable safely (NO infinite loop)
+function generateTimetable(){
+  const {subjects, faculty, labs, sections} = getInputs();
+  const slots = [0,1,2,3,4,5]; // 6 periods/day
 
-// ---------- TABLE UI ----------
-function drawTable(tt) {
+  timetableData = {};
+  let facultyBusy = {}; // track clashes
 
-    let html = `<table border="1">
-    <tr>
-        <th>Day</th>
-        <th>I<br>7:30-8:25</th>
-        <th>II<br>8:25-9:20</th>
-        <th>III<br>9:20-10:15</th>
-        <th>10:15-10:45</th>
-        <th>IV<br>10:45-11:40</th>
-        <th>V<br>11:40-12:35</th>
-        <th>VI<br>12:35-1:30</th>
-    </tr>`;
+  sections.forEach(sec=>{
+    timetableData[sec] = {};
 
-    DAYS.forEach(day => {
-        html += `<tr><td>${day}</td>`;
-        for (let i=0;i<PERIODS;i++) {
-            html += `<td>${tt[day][i]}</td>`;
-        }
-        html += "</tr>";
+    days.forEach(day=>{
+      timetableData[sec][day] = new Array(6).fill("");
+
+      // fixed positions
+      let breakSlot = 2;
+      let freeSlot = 5;
+
+      timetableData[sec][day][breakSlot] = "Break";
+      timetableData[sec][day][freeSlot] = "Free";
     });
+  });
 
-    html += "</table>";
-    return html;
+  // LABS (3 continuous hours)
+  labs.forEach((lab, i)=>{
+    let facultyName = faculty[i % faculty.length];
+
+    days.forEach((day, d)=>{
+      if(d >= sections.length) return;
+
+      let sec = sections[d];
+
+      let placed = false;
+
+      for(let start=0; start<=3; start++){
+        if(start === 2) continue; // avoid break
+
+        let canPlace = true;
+
+        for(let j=0;j<3;j++){
+          let slotKey = day + "_" + (start+j);
+
+          if(
+            timetableData[sec][day][start+j] !== "" ||
+            facultyBusy[slotKey] === facultyName
+          ){
+            canPlace = false;
+          }
+        }
+
+        if(canPlace){
+          for(let j=0;j<3;j++){
+            timetableData[sec][day][start+j] = lab + " LAB ("+facultyName+")";
+            facultyBusy[day+"_"+(start+j)] = facultyName;
+          }
+          placed = true;
+          break;
+        }
+      }
+    });
+  });
+
+  // THEORY subjects
+  let subIndex = 0;
+
+  sections.forEach(sec=>{
+    days.forEach(day=>{
+      for(let i=0;i<6;i++){
+
+        if(timetableData[sec][day][i] !== "") continue;
+
+        let subject = subjects[subIndex % subjects.length];
+        let fac = faculty[subIndex % faculty.length];
+
+        let key = day + "_" + i;
+
+        // avoid clashes
+        if(facultyBusy[key] === fac) continue;
+
+        timetableData[sec][day][i] = subject + " ("+fac+")";
+        facultyBusy[key] = fac;
+
+        subIndex++;
+      }
+    });
+  });
+
+  display();
 }
 
+// display
+function display(){
+  let container = document.getElementById("output");
+  container.innerHTML = "";
 
-// ---------- CLASH CHECK ----------
-function checkClashes() {
+  for(let sec in timetableData){
+    let html = `<h2>Section ${sec}</h2>`;
+    html += `<table border="1"><tr><th>Day</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr>`;
 
-    let clash = false;
-    let map = {};
+    days.forEach(day=>{
+      html += `<tr><td>${day}</td>`;
+      timetableData[sec][day].forEach(p=>{
+        html += `<td>${p}</td>`;
+      });
+      html += "</tr>";
+    });
 
-    for (let section in globalTimetable) {
-        let tt = globalTimetable[section];
+    html += "</table><br>";
+    container.innerHTML += html;
+  }
+}
 
-        for (let day in tt) {
+// CLASH CHECK
+function checkClashes(){
+  let seen = {};
 
-            tt[day].forEach((val, i) => {
+  for(let sec in timetableData){
+    for(let day in timetableData[sec]){
+      timetableData[sec][day].forEach((p,i)=>{
+        if(p.includes("(")){
+          let fac = p.split("(")[1].replace(")","");
+          let key = day+"_"+i;
 
-                if (val.includes("(")) {
-
-                    let fac = val.split("(")[1].replace(")","");
-                    let key = day + "-" + i + "-" + fac;
-
-                    if (map[key]) {
-                        clash = true;
-                    } else {
-                        map[key] = true;
-                    }
-                }
-            });
+          if(seen[key] === fac){
+            alert("❌ Clash found for "+fac+" at "+day+" period "+(i+1));
+            return;
+          }
+          seen[key] = fac;
         }
+      });
     }
+  }
 
-    if (clash) {
-        alert("❌ Clashes Found!");
-    } else {
-        alert("✅ No Clashes!");
-    }
+  alert("✅ No clashes!");
 }
